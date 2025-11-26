@@ -2,11 +2,20 @@ import { useSearchParams } from "react-router-dom";
 import { useWebSocket } from "../context/useWebSocket";
 import { useEffect, useRef, useState } from "react";
 
+type chatType = {
+  type: string;
+  chat: string;
+};
+
 export default function Room() {
   const [searchParams] = useSearchParams();
   const roomId = searchParams.get("roomId");
 
   const { socket, getLocalStream } = useWebSocket();
+  const [chat, setChat] = useState<chatType[]>([]);
+  const sendChatRef = useRef<HTMLInputElement>(null);
+
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const [sendingPc, setSendingPc] = useState<RTCConfiguration>();
   const [receivingPc, setReceivingPc] = useState<RTCConfiguration>();
@@ -105,7 +114,7 @@ export default function Room() {
             const localSdp = await receiverPc.createAnswer();
             await receiverPc.setLocalDescription(localSdp);
 
-            alert("answering");
+            // alert("answering");
 
             socket.send(
               JSON.stringify({
@@ -143,6 +152,12 @@ export default function Room() {
                 })
               );
             }
+          } else if (message.type == "chat") {
+            const chatt = {
+              type: "receive",
+              chat: message.chat,
+            };
+            setChat((c) => [...c, chatt]);
           }
         };
       };
@@ -156,16 +171,20 @@ export default function Room() {
     };
   }, []);
 
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chat]);
+
   return (
     <div className="grid grid-cols-12">
       <div className="col-span-9 h-screen flex p-10 justify-evenly">
-        <div className=" border-red-500 border">
+        <div>
           <video
             ref={localVideoRef}
             muted
             playsInline
             autoPlay
-            className="rounded-xl w-[70%]"
+            className="rounded-xl w-xl"
           ></video>
         </div>
 
@@ -173,12 +192,12 @@ export default function Room() {
           <video
             ref={remoteVideoRef}
             autoPlay
-            className="rounded-xl w-[70%]"
+            className="rounded-xl w-xl"
           ></video>
         </div>
       </div>
 
-      <div className="col-span-3 border-l-slate-300 border-l h-screen px-5 py-4">
+      <div className="col-span-3 border-l-slate-300 border-l h-screen px-5 pt-4 flex  flex-col">
         <button
           className="bg-blue-500 text-white px-6 py-4 w-full cursor-pointer hover:scale-105  transition-transform duration-100 rounded-2xl shadow-xl"
           onClick={async () => {
@@ -188,6 +207,66 @@ export default function Room() {
         >
           Invite someone
         </button>
+        <div className="flex flex-col flex-1 mt-4 justify-between  mb-2">
+          <div className="flex-1 overflow-y-auto p-2 flex flex-col-reverse gap-4 overflow-hidden">
+            {[...chat].reverse().map((c, i) => {
+              const isReceive = c.type === "receive";
+
+              return (
+                <div
+                  key={i}
+                  className={`flex w-full ${
+                    isReceive ? "justify-start" : "justify-end"
+                  }`}
+                >
+                  <div
+                    className={`p-2 rounded-xl max-w-[70%] ${
+                      isReceive ? "bg-slate-300" : "bg-blue-500 text-white"
+                    }`}
+                  >
+                    {c.chat}
+                  </div>
+                </div>
+              );
+            })}
+            <div ref={messagesEndRef} />
+          </div>
+          <form
+            className="flex gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (socket) {
+                socket.send(
+                  JSON.stringify({
+                    type: "chat",
+                    chat: sendChatRef.current?.value,
+                  })
+                );
+              }
+
+              const chatt = {
+                type: "send",
+                chat: sendChatRef.current?.value ?? "",
+              };
+
+              setChat((c) => [...c, chatt]);
+              if (sendChatRef.current) sendChatRef.current.value = "";
+            }}
+          >
+            <input
+              type="text"
+              placeholder="message"
+              className="flex-1 border-slate-200 border rounded-2xl text-slate-700 p-2"
+              ref={sendChatRef}
+            />
+            <button
+              type="submit"
+              className="px-4 py-3 bg-blue-500 text-white px-4 py-2 rounded-xl hover:scale-105 transition-transform duration-200 cursor-pointer"
+            >
+              Send
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );

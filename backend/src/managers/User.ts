@@ -92,6 +92,20 @@ export class UserManager {
             candidate: msg.candidate,
           })
         );
+      } else if (msg.type == "chat") {
+        // get th other user
+        console.log("sending chat");
+        const otherUser = this.roomManager.getOtherUserInRoom(socket);
+        if (!otherUser) {
+          return;
+        }
+
+        otherUser.send(
+          JSON.stringify({
+            type: "chat",
+            chat: msg.chat,
+          })
+        );
       }
     });
   }
